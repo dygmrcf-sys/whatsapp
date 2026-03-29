@@ -1,0 +1,287 @@
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+.shell { padding: 1.5rem 0; max-width: 560px; }
+.control-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.control-row label { font-size: 13px; color: var(--color-text-secondary); min-width: 72px; }
+.control-row input {
+  flex: 1; font-size: 13px; padding: 7px 11px;
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-secondary);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+}
+.divider { border: none; border-top: 0.5px solid var(--color-border-tertiary); margin: 16px 0; }
+.section-label { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: 10px; }
+.card { width: 360px; background: #e8f5e1; border-radius: 12px; border: 0.5px solid #b6d9a0; padding: 24px 28px; font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; }
+.card-header { border-bottom: 0.5px solid #b6d9a0; padding-bottom: 16px; margin-bottom: 20px; }
+.card-title { font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #2d5a1b; }
+.card-date { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; color: #4a7c2f; margin-top: 4px; }
+.card-divider-line { border: none; border-top: 0.5px solid #b6d9a0; margin: 14px 0; }
+.event-block { }
+.event-title { font-size: 13px; font-weight: 600; color: #1a3d0a; line-height: 1.4; margin-bottom: 6px; }
+.meta-row { display: flex; gap: 6px; align-items: baseline; margin-top: 3px; }
+.meta-key { font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #4a7c2f; min-width: 40px; }
+.meta-val { font-size: 12px; color: #2a4d16; line-height: 1.5; }
+.no-events { font-size: 13px; color: #4a7c2f; font-style: italic; }
+.btn-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+button { cursor: pointer; font-size: 13px; padding: 7px 16px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); font-family: inherit; }
+button:hover { background: var(--color-background-secondary); }
+.btn-accent { background: #2d5a1b; color: #e8f5e1; border-color: #1a3d0a; font-weight: 500; }
+.btn-accent:hover { background: #1a3d0a; }
+.btn-accent:disabled { background: var(--color-background-secondary); color: var(--color-text-secondary); border-color: var(--color-border-tertiary); cursor: not-allowed; }
+.status-line { font-size: 12px; margin-top: 10px; min-height: 16px; color: var(--color-text-secondary); }
+.ok { color: var(--color-text-success); }
+.err { color: var(--color-text-danger); }
+</style>
+
+<div class="shell">
+  <div class="control-row">
+    <label>Date</label>
+    <input type="date" id="target-date" />
+  </div>
+  <hr class="divider">
+  <div class="control-row">
+    <label>To</label>
+    <input type="email" id="to-email" placeholder="recipient@gmail.com" />
+  </div>
+  <div class="control-row">
+    <label>Subject</label>
+    <input type="text" id="email-subject" value="GM Sir Engagement Schedule" />
+  </div>
+  <hr class="divider">
+  <div class="section-label">Preview</div>
+  <div class="card" id="schedule-card">
+    <div class="card-header">
+      <div class="card-title">GM Sir — Engagement Schedule</div>
+      <div class="card-date" id="card-date-line">Loading…</div>
+    </div>
+    <div id="card-body"></div>
+  </div>
+  <div class="btn-row">
+    <button id="copy-btn" onclick="copyText()">Copy text</button>
+    <button onclick="allEvents=[];generateMsg()">Refresh</button>
+    <button class="btn-accent" id="save-btn" onclick="saveAsImage()">Save as image</button>
+    <button class="btn-accent" id="send-btn" onclick="sendEmail()">Send via Gmail</button>
+  </div>
+  <div class="status-line" id="status"></div>
+  <div class="status-line" id="send-status"></div>
+</div>
+
+<script>
+const SHEET_ID = "1sj4pPxk0cLVsJ12aUXnytWJuw1sxUVSRD2MOK4hTgAU";
+const GID = "0";
+
+const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function pad(n){ return String(n).padStart(2,'0'); }
+function getTomorrow(){ const t=new Date(); t.setDate(t.getDate()+1); return t; }
+function toYMD(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function sameDay(a,b){ return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
+
+const dateInput = document.getElementById('target-date');
+dateInput.value = toYMD(getTomorrow());
+dateInput.addEventListener('change', generateMsg);
+
+function parseDate(s){
+  s=s.trim(); let m;
+  if((m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/))) return new Date(+m[3],+m[2]-1,+m[1]);
+  if((m=s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/)))      return new Date(+m[1],+m[2]-1,+m[3]);
+  const raw=new Date(s); if(!isNaN(raw)) return new Date(raw.getFullYear(),raw.getMonth(),raw.getDate());
+  return null;
+}
+function splitCSVLine(line){
+  const r=[]; let cur=''; let inQ=false;
+  for(let c of line){ if(c==='"'){inQ=!inQ;} else if(c===','&&!inQ){r.push(cur);cur='';} else cur+=c; }
+  r.push(cur); return r;
+}
+function parseCSV(raw){
+  const lines=raw.split(/\r?\n/).filter(l=>l.trim());
+  if(!lines.length) return [];
+  const header=lines[0].split(',').map(h=>h.trim().toLowerCase().replace(/"/g,''));
+  const idx={
+    date:     header.findIndex(h=>h==='date'),
+    time:     header.findIndex(h=>h==='time'),
+    title:    header.findIndex(h=>h.includes('title')||h.includes('engagement')||h.includes('subject')),
+    location: header.findIndex(h=>h.includes('location')||h.includes('venue')||h.includes('place')),
+  };
+  const parsed=[];
+  for(let i=1;i<lines.length;i++){
+    const cols=splitCSVLine(lines[i]);
+    const dateStr=idx.date>=0?cols[idx.date]?.replace(/"/g,'').trim():'';
+    if(!dateStr) continue;
+    const d=parseDate(dateStr);
+    if(!d||isNaN(d)) continue;
+    parsed.push({
+      date:d,
+      time:     idx.time>=0    ?(cols[idx.time]||'').replace(/"/g,'').trim():'',
+      title:    idx.title>=0   ?(cols[idx.title]||'').replace(/"/g,'').trim():'Engagement',
+      location: idx.location>=0?(cols[idx.location]||'').replace(/"/g,'').trim():'',
+    });
+  }
+  return parsed;
+}
+
+async function tryFetch(url, timeout=8000){
+  const r = await fetch(url, {signal: AbortSignal.timeout(timeout)});
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  return await r.text();
+}
+
+async function fetchSheet(){
+  const csvDirect   = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
+  const csvPub      = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?output=csv&gid=${GID}`;
+  const proxy1      = u => `https://corsproxy.io/?${encodeURIComponent(u)}`;
+  const proxy2      = u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`;
+
+  const attempts = [
+    () => tryFetch(csvDirect),
+    () => tryFetch(csvPub),
+    () => tryFetch(proxy1(csvDirect)),
+    () => tryFetch(proxy1(csvPub)),
+    () => tryFetch(proxy2(csvDirect)).then(t => t.startsWith('{"contents"') ? JSON.parse(t).contents : t),
+    () => tryFetch(proxy2(csvPub)).then(t => t.startsWith('{"contents"') ? JSON.parse(t).contents : t),
+  ];
+
+  const errors = [];
+  for(const attempt of attempts){
+    try {
+      const text = await attempt();
+      if(text && text.trim().length > 10) return text;
+    } catch(e) { errors.push(e.message); }
+  }
+  throw new Error('All fetch attempts failed: ' + errors.join(' | '));
+}
+
+let allEvents=[];
+
+function renderCard(events, targetDate){
+  const day   = DAYS[targetDate.getDay()];
+  const dd    = String(targetDate.getDate());
+  const month = MONTHS[targetDate.getMonth()];
+  const year  = String(targetDate.getFullYear());
+  document.getElementById('card-date-line').textContent = `${day}, ${dd} ${month} ${year}`;
+  const filtered = events.filter(e=>sameDay(e.date,targetDate)).sort((a,b)=>a.time.localeCompare(b.time));
+  const body = document.getElementById('card-body');
+  if(!filtered.length){ body.innerHTML='<div class="no-events">No engagements scheduled.</div>'; return; }
+  body.innerHTML = filtered.map((e,i) => {
+    const sep = i < filtered.length-1 ? '<hr class="card-divider-line">' : '';
+    const timeMeta  = e.time     ? `<div class="meta-row"><span class="meta-key">Time</span><span class="meta-val">${e.time} hrs</span></div>` : '';
+    const venueMeta = e.location ? `<div class="meta-row"><span class="meta-key">Venue</span><span class="meta-val">${e.location}</span></div>` : '';
+    return `<div class="event-block"><div class="event-title">${i+1}.&nbsp;&nbsp;${e.title}</div>${timeMeta}${venueMeta}</div>${sep}`;
+  }).join('');
+}
+
+function getPlainText(){
+  const dateVal=dateInput.value;
+  const targetDate=dateVal?new Date(dateVal+'T00:00:00'):getTomorrow();
+  const day=DAYS[targetDate.getDay()].toUpperCase();
+  const dd=String(targetDate.getDate());
+  const month=MONTHS[targetDate.getMonth()].toUpperCase();
+  const year=String(targetDate.getFullYear());
+  const filtered=allEvents.filter(e=>sameDay(e.date,targetDate)).sort((a,b)=>a.time.localeCompare(b.time));
+  let t=`GM SIR ENGAGEMENT SCHEDULE\n${dd} ${month} ${year}  |  ${day}\n${'='.repeat(32)}\n\n`;
+  if(!filtered.length){ t+='No engagements scheduled.'; }
+  else { filtered.forEach((e,i)=>{ t+=`${i+1}. ${e.title}\n`; if(e.time) t+=`   Time  : ${e.time} hrs\n`; if(e.location) t+=`   Venue : ${e.location}\n`; if(i<filtered.length-1) t+='\n'; }); }
+  return t;
+}
+
+async function generateMsg(){
+  const statusEl=document.getElementById('status');
+  document.getElementById('card-date-line').textContent='Loading…';
+  document.getElementById('card-body').innerHTML='';
+  statusEl.textContent='Fetching sheet…';
+  statusEl.className='';
+  const dateVal=dateInput.value;
+  const targetDate=dateVal?new Date(dateVal+'T00:00:00'):getTomorrow();
+  try{
+    if(!allEvents.length){
+      const text = await fetchSheet();
+      allEvents = parseCSV(text);
+      if(!allEvents.length) throw new Error('Sheet fetched but no rows parsed — check column headers (date, time, title/engagement, location/venue)');
+    }
+    renderCard(allEvents, targetDate);
+    statusEl.textContent='Loaded '+allEvents.length+' events from sheet';
+    statusEl.className='ok';
+  }catch(e){
+    statusEl.textContent='Sheet error: '+e.message;
+    statusEl.className='err';
+    loadSampleEvents();
+    renderCard(allEvents, targetDate);
+  }
+}
+
+function loadSampleEvents(){
+  const n=new Date(); const y=n.getFullYear(),mo=n.getMonth(),nd=n.getDate();
+  const d=(day)=>new Date(y,mo,day);
+  const t=(h,m)=>`${pad(h)}:${pad(m)}`;
+  allEvents=[
+    {date:d(nd+1),time:t(9,30), title:'Divisional Managers Briefing',                      location:'Conference Room A, HQ'},
+    {date:d(nd+1),time:t(11,0), title:'Infrastructure Review — Goods Shed Modernisation',  location:'Yard Office'},
+    {date:d(nd+1),time:t(14,0), title:'Parliamentary Committee Interaction (Virtual)',      location:'Video Conference'},
+    {date:d(nd+1),time:t(16,30),title:'Press Briefing — New Train Services',                location:'Media Centre'},
+  ];
+}
+
+async function copyText(){
+  const btn=document.getElementById('copy-btn');
+  try{
+    await navigator.clipboard.writeText(getPlainText());
+    btn.textContent='Copied!';
+    setTimeout(()=>{btn.textContent='Copy text';},2000);
+  }catch(_){ btn.textContent='Select manually'; setTimeout(()=>{btn.textContent='Copy text';},2000); }
+}
+
+async function saveAsImage(){
+  const btn=document.getElementById('save-btn');
+  const statusEl=document.getElementById('status');
+  btn.disabled=true; btn.textContent='Saving…'; statusEl.textContent='';
+  try{
+    const card=document.getElementById('schedule-card');
+    const canvas=await html2canvas(card,{backgroundColor:'#e8f5e1',scale:3,useCORS:true,logging:false});
+    const dateVal=dateInput.value||toYMD(getTomorrow());
+    const filename=`schedule_${dateVal}.png`;
+    const link=document.createElement('a');
+    link.download=filename; link.href=canvas.toDataURL('image/png'); link.click();
+    statusEl.textContent=`Saved ${filename} (${canvas.width}x${canvas.height}px)`;
+    statusEl.className='ok';
+    setTimeout(()=>{statusEl.textContent='';statusEl.className='';},3000);
+  }catch(e){ statusEl.textContent='Could not save: '+e.message; statusEl.className='err'; }
+  btn.disabled=false; btn.textContent='Save as image';
+}
+
+function makeEmailBody(plainText){
+  const lines=plainText.split('\n');
+  const html=lines.map(l=>l.trim()?'<div>'+l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>':'<br>').join('');
+  return `<div style="font-family:monospace;font-size:14px;line-height:1.7;">${html}</div>`;
+}
+function toBase64Url(str){ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+
+async function sendEmail(){
+  const sendBtn=document.getElementById('send-btn');
+  const statusEl=document.getElementById('send-status');
+  const to=document.getElementById('to-email').value.trim();
+  const subject=document.getElementById('email-subject').value.trim()||'GM Sir Engagement Schedule';
+  if(!to||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){
+    statusEl.textContent='Please enter a valid email address.'; statusEl.className='err'; return;
+  }
+  sendBtn.disabled=true; sendBtn.textContent='Sending…'; statusEl.textContent=''; statusEl.className='';
+  const emailRaw=[`To: ${to}`,`Subject: ${subject}`,'MIME-Version: 1.0','Content-Type: text/html; charset=UTF-8','',makeEmailBody(getPlainText())].join('\r\n');
+  try{
+    const response=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({raw:toBase64Url(emailRaw)}),credentials:'include'
+    });
+    if(response.ok){ statusEl.textContent='Email sent successfully!'; statusEl.className='ok'; }
+    else{
+      const err=await response.json().catch(()=>({}));
+      statusEl.textContent=response.status===401?'Not authenticated — connect Gmail in settings.':'Send failed: '+(err?.error?.message||response.statusText);
+      statusEl.className='err';
+    }
+  }catch(e){ statusEl.textContent='Network error: '+e.message; statusEl.className='err'; }
+  sendBtn.disabled=false; sendBtn.textContent='Send via Gmail';
+}
+
+generateMsg();
+</script>
