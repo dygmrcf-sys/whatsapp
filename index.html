@@ -24,6 +24,7 @@
 .meta-row { display: flex; gap: 6px; align-items: baseline; margin-top: 3px; }
 .meta-key { font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #4a7c2f; min-width: 40px; }
 .meta-val { font-size: 12px; color: #2a4d16; line-height: 1.5; }
+.attendees-line { font-size: 12px; color: #1a1a1a; line-height: 1.5; margin-top: 5px; }
 .no-events { font-size: 13px; color: #4a7c2f; font-style: italic; }
 .btn-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 button { cursor: pointer; font-size: 13px; padding: 7px 16px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); font-family: inherit; }
@@ -132,10 +133,10 @@ async function tryFetch(url, timeout=8000){
 }
 
 async function fetchSheet(){
-  const csvDirect   = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
-  const csvPub      = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?output=csv&gid=${GID}`;
-  const proxy1      = u => `https://corsproxy.io/?${encodeURIComponent(u)}`;
-  const proxy2      = u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`;
+  const csvDirect = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
+  const csvPub    = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?output=csv&gid=${GID}`;
+  const proxy1    = u => `https://corsproxy.io/?${encodeURIComponent(u)}`;
+  const proxy2    = u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`;
 
   const attempts = [
     () => tryFetch(csvDirect),
@@ -148,10 +149,8 @@ async function fetchSheet(){
 
   const errors = [];
   for(const attempt of attempts){
-    try {
-      const text = await attempt();
-      if(text && text.trim().length > 10) return text;
-    } catch(e) { errors.push(e.message); }
+    try { const text = await attempt(); if(text && text.trim().length > 10) return text; }
+    catch(e) { errors.push(e.message); }
   }
   throw new Error('All fetch attempts failed: ' + errors.join(' | '));
 }
@@ -168,11 +167,11 @@ function renderCard(events, targetDate){
   const body = document.getElementById('card-body');
   if(!filtered.length){ body.innerHTML='<div class="no-events">No engagements scheduled.</div>'; return; }
   body.innerHTML = filtered.map((e,i) => {
-    const sep = i < filtered.length-1 ? '<hr class="card-divider-line">' : '';
+    const sep           = i < filtered.length-1 ? '<hr class="card-divider-line">' : '';
     const timeMeta      = e.time      ? `<div class="meta-row"><span class="meta-key">Time</span><span class="meta-val">${e.time} hrs</span></div>` : '';
     const venueMeta     = e.location  ? `<div class="meta-row"><span class="meta-key">Venue</span><span class="meta-val">${e.location}</span></div>` : '';
-    const attendeesMeta = e.attendees ? `<div class="meta-row"><span class="meta-key">With</span><span class="meta-val">${e.attendees}</span></div>` : '';
-    return `<div class="event-block"><div class="event-title">${e.title}</div>${timeMeta}${venueMeta}${attendeesMeta}</div>${sep}`;
+    const attendeesLine = e.attendees ? `<div class="attendees-line">${e.attendees}</div>` : '';
+    return `<div class="event-block"><div class="event-title">${e.title}</div>${timeMeta}${venueMeta}${attendeesLine}</div>${sep}`;
   }).join('');
 }
 
@@ -186,7 +185,7 @@ function getPlainText(){
   const filtered=allEvents.filter(e=>sameDay(e.date,targetDate)).sort((a,b)=>a.time.localeCompare(b.time));
   let t=`GM SIR ENGAGEMENT SCHEDULE\n${dd} ${month} ${year}  |  ${day}\n${'='.repeat(32)}\n\n`;
   if(!filtered.length){ t+='No engagements scheduled.'; }
-  else { filtered.forEach((e,i)=>{ t+=`${i+1}. ${e.title}\n`; if(e.time) t+=`   Time      : ${e.time} hrs\n`; if(e.location) t+=`   Venue     : ${e.location}\n`; if(e.attendees) t+=`   Attendees : ${e.attendees}\n`; if(i<filtered.length-1) t+='\n'; }); }
+  else { filtered.forEach((e,i)=>{ t+=`${i+1}. ${e.title}\n`; if(e.time) t+=`   Time  : ${e.time} hrs\n`; if(e.location) t+=`   Venue : ${e.location}\n`; if(e.attendees) t+=`   ${e.attendees}\n`; if(i<filtered.length-1) t+='\n'; }); }
   return t;
 }
 
@@ -194,8 +193,7 @@ async function generateMsg(){
   const statusEl=document.getElementById('status');
   document.getElementById('card-date-line').textContent='Loading…';
   document.getElementById('card-body').innerHTML='';
-  statusEl.textContent='Fetching sheet…';
-  statusEl.className='';
+  statusEl.textContent='Fetching sheet…'; statusEl.className='';
   const dateVal=dateInput.value;
   const targetDate=dateVal?new Date(dateVal+'T00:00:00'):getTomorrow();
   try{
@@ -208,8 +206,7 @@ async function generateMsg(){
     statusEl.textContent='Loaded '+allEvents.length+' events from sheet';
     statusEl.className='ok';
   }catch(e){
-    statusEl.textContent='Sheet error: '+e.message;
-    statusEl.className='err';
+    statusEl.textContent='Sheet error: '+e.message; statusEl.className='err';
     loadSampleEvents();
     renderCard(allEvents, targetDate);
   }
@@ -220,10 +217,10 @@ function loadSampleEvents(){
   const d=(day)=>new Date(y,mo,day);
   const t=(h,m)=>`${pad(h)}:${pad(m)}`;
   allEvents=[
-    {date:d(nd+1),time:t(9,30), title:'Divisional Managers Briefing',                      location:'Conference Room A, HQ',  attendees:'All Divisional Managers'},
-    {date:d(nd+1),time:t(11,0), title:'Infrastructure Review — Goods Shed Modernisation',  location:'Yard Office',             attendees:'CE/Works, Sr.DEE'},
-    {date:d(nd+1),time:t(14,0), title:'Parliamentary Committee Interaction (Virtual)',      location:'Video Conference',        attendees:''},
-    {date:d(nd+1),time:t(16,30),title:'Press Briefing — New Train Services',                location:'Media Centre',            attendees:'CPRO, DRM/HQ'},
+    {date:d(nd+1),time:t(9,30), title:'Divisional Managers Briefing',                      location:'Conference Room A, HQ', attendees:'All Divisional Managers'},
+    {date:d(nd+1),time:t(11,0), title:'Infrastructure Review — Goods Shed Modernisation',  location:'Yard Office',           attendees:'CE/Works, Sr.DEE'},
+    {date:d(nd+1),time:t(14,0), title:'Parliamentary Committee Interaction (Virtual)',      location:'Video Conference',      attendees:''},
+    {date:d(nd+1),time:t(16,30),title:'Press Briefing — New Train Services',                location:'Media Centre',          attendees:'CPRO, DRM/HQ'},
   ];
 }
 
@@ -231,14 +228,12 @@ async function copyText(){
   const btn=document.getElementById('copy-btn');
   try{
     await navigator.clipboard.writeText(getPlainText());
-    btn.textContent='Copied!';
-    setTimeout(()=>{btn.textContent='Copy text';},2000);
+    btn.textContent='Copied!'; setTimeout(()=>{btn.textContent='Copy text';},2000);
   }catch(_){ btn.textContent='Select manually'; setTimeout(()=>{btn.textContent='Copy text';},2000); }
 }
 
 async function saveAsImage(){
-  const btn=document.getElementById('save-btn');
-  const statusEl=document.getElementById('status');
+  const btn=document.getElementById('save-btn'); const statusEl=document.getElementById('status');
   btn.disabled=true; btn.textContent='Saving…'; statusEl.textContent='';
   try{
     const card=document.getElementById('schedule-card');
@@ -247,8 +242,7 @@ async function saveAsImage(){
     const filename=`schedule_${dateVal}.png`;
     const link=document.createElement('a');
     link.download=filename; link.href=canvas.toDataURL('image/png'); link.click();
-    statusEl.textContent=`Saved ${filename} (${canvas.width}x${canvas.height}px)`;
-    statusEl.className='ok';
+    statusEl.textContent=`Saved ${filename} (${canvas.width}x${canvas.height}px)`; statusEl.className='ok';
     setTimeout(()=>{statusEl.textContent='';statusEl.className='';},3000);
   }catch(e){ statusEl.textContent='Could not save: '+e.message; statusEl.className='err'; }
   btn.disabled=false; btn.textContent='Save as image';
@@ -262,8 +256,7 @@ function makeEmailBody(plainText){
 function toBase64Url(str){ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
 
 async function sendEmail(){
-  const sendBtn=document.getElementById('send-btn');
-  const statusEl=document.getElementById('send-status');
+  const sendBtn=document.getElementById('send-btn'); const statusEl=document.getElementById('send-status');
   const to=document.getElementById('to-email').value.trim();
   const subject=document.getElementById('email-subject').value.trim()||'GM Sir Engagement Schedule';
   if(!to||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){
