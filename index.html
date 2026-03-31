@@ -101,10 +101,11 @@ function parseCSV(raw){
   if(!lines.length) return [];
   const header=lines[0].split(',').map(h=>h.trim().toLowerCase().replace(/"/g,''));
   const idx={
-    date:     header.findIndex(h=>h==='date'),
-    time:     header.findIndex(h=>h==='time'),
-    title:    header.findIndex(h=>h.includes('title')||h.includes('engagement')||h.includes('subject')),
-    location: header.findIndex(h=>h.includes('location')||h.includes('venue')||h.includes('place')),
+    date:      header.findIndex(h=>h==='date'),
+    time:      header.findIndex(h=>h==='time'),
+    title:     header.findIndex(h=>h.includes('title')||h.includes('engagement')||h.includes('subject')),
+    location:  header.findIndex(h=>h.includes('location')||h.includes('venue')||h.includes('place')),
+    attendees: header.findIndex(h=>h.includes('attendee')||h.includes('participant')||h.includes('officer')),
   };
   const parsed=[];
   for(let i=1;i<lines.length;i++){
@@ -115,9 +116,10 @@ function parseCSV(raw){
     if(!d||isNaN(d)) continue;
     parsed.push({
       date:d,
-      time:     idx.time>=0    ?(cols[idx.time]||'').replace(/"/g,'').trim():'',
-      title:    idx.title>=0   ?(cols[idx.title]||'').replace(/"/g,'').trim():'Engagement',
-      location: idx.location>=0?(cols[idx.location]||'').replace(/"/g,'').trim():'',
+      time:      idx.time>=0      ?(cols[idx.time]||'').replace(/"/g,'').trim():'',
+      title:     idx.title>=0     ?(cols[idx.title]||'').replace(/"/g,'').trim():'Engagement',
+      location:  idx.location>=0  ?(cols[idx.location]||'').replace(/"/g,'').trim():'',
+      attendees: idx.attendees>=0 ?(cols[idx.attendees]||'').replace(/"/g,'').trim():'',
     });
   }
   return parsed;
@@ -167,9 +169,10 @@ function renderCard(events, targetDate){
   if(!filtered.length){ body.innerHTML='<div class="no-events">No engagements scheduled.</div>'; return; }
   body.innerHTML = filtered.map((e,i) => {
     const sep = i < filtered.length-1 ? '<hr class="card-divider-line">' : '';
-    const timeMeta  = e.time     ? `<div class="meta-row"><span class="meta-key">Time</span><span class="meta-val">${e.time} hrs</span></div>` : '';
-    const venueMeta = e.location ? `<div class="meta-row"><span class="meta-key">Venue</span><span class="meta-val">${e.location}</span></div>` : '';
-    return `<div class="event-block"><div class="event-title">${i+1}.&nbsp;&nbsp;${e.title}</div>${timeMeta}${venueMeta}</div>${sep}`;
+    const timeMeta      = e.time      ? `<div class="meta-row"><span class="meta-key">Time</span><span class="meta-val">${e.time} hrs</span></div>` : '';
+    const venueMeta     = e.location  ? `<div class="meta-row"><span class="meta-key">Venue</span><span class="meta-val">${e.location}</span></div>` : '';
+    const attendeesMeta = e.attendees ? `<div class="meta-row"><span class="meta-key">With</span><span class="meta-val">${e.attendees}</span></div>` : '';
+    return `<div class="event-block"><div class="event-title">${e.title}</div>${timeMeta}${venueMeta}${attendeesMeta}</div>${sep}`;
   }).join('');
 }
 
@@ -183,7 +186,7 @@ function getPlainText(){
   const filtered=allEvents.filter(e=>sameDay(e.date,targetDate)).sort((a,b)=>a.time.localeCompare(b.time));
   let t=`GM SIR ENGAGEMENT SCHEDULE\n${dd} ${month} ${year}  |  ${day}\n${'='.repeat(32)}\n\n`;
   if(!filtered.length){ t+='No engagements scheduled.'; }
-  else { filtered.forEach((e,i)=>{ t+=`${i+1}. ${e.title}\n`; if(e.time) t+=`   Time  : ${e.time} hrs\n`; if(e.location) t+=`   Venue : ${e.location}\n`; if(i<filtered.length-1) t+='\n'; }); }
+  else { filtered.forEach((e,i)=>{ t+=`${i+1}. ${e.title}\n`; if(e.time) t+=`   Time      : ${e.time} hrs\n`; if(e.location) t+=`   Venue     : ${e.location}\n`; if(e.attendees) t+=`   Attendees : ${e.attendees}\n`; if(i<filtered.length-1) t+='\n'; }); }
   return t;
 }
 
@@ -199,7 +202,7 @@ async function generateMsg(){
     if(!allEvents.length){
       const text = await fetchSheet();
       allEvents = parseCSV(text);
-      if(!allEvents.length) throw new Error('Sheet fetched but no rows parsed — check column headers (date, time, title/engagement, location/venue)');
+      if(!allEvents.length) throw new Error('Sheet fetched but no rows parsed — check column headers (date, time, title/engagement, location/venue, attendees)');
     }
     renderCard(allEvents, targetDate);
     statusEl.textContent='Loaded '+allEvents.length+' events from sheet';
@@ -217,10 +220,10 @@ function loadSampleEvents(){
   const d=(day)=>new Date(y,mo,day);
   const t=(h,m)=>`${pad(h)}:${pad(m)}`;
   allEvents=[
-    {date:d(nd+1),time:t(9,30), title:'Divisional Managers Briefing',                      location:'Conference Room A, HQ'},
-    {date:d(nd+1),time:t(11,0), title:'Infrastructure Review — Goods Shed Modernisation',  location:'Yard Office'},
-    {date:d(nd+1),time:t(14,0), title:'Parliamentary Committee Interaction (Virtual)',      location:'Video Conference'},
-    {date:d(nd+1),time:t(16,30),title:'Press Briefing — New Train Services',                location:'Media Centre'},
+    {date:d(nd+1),time:t(9,30), title:'Divisional Managers Briefing',                      location:'Conference Room A, HQ',  attendees:'All Divisional Managers'},
+    {date:d(nd+1),time:t(11,0), title:'Infrastructure Review — Goods Shed Modernisation',  location:'Yard Office',             attendees:'CE/Works, Sr.DEE'},
+    {date:d(nd+1),time:t(14,0), title:'Parliamentary Committee Interaction (Virtual)',      location:'Video Conference',        attendees:''},
+    {date:d(nd+1),time:t(16,30),title:'Press Briefing — New Train Services',                location:'Media Centre',            attendees:'CPRO, DRM/HQ'},
   ];
 }
 
