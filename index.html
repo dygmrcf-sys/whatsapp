@@ -24,7 +24,7 @@
 .meta-row { display: flex; gap: 6px; align-items: baseline; margin-top: 3px; }
 .meta-key { font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #4a7c2f; min-width: 40px; }
 .meta-val { font-size: 12px; color: #2a4d16; line-height: 1.5; }
-.attendees-line { font-size: 12px; color: #1a1a1a; line-height: 1.5; margin-top: 5px; }
+.attendees-line { font-size: 12px; color: #1a1a1a; line-height: 1.5; margin-top: 5px; font-style: italic; }
 .no-events { font-size: 13px; color: #4a7c2f; font-style: italic; }
 .btn-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 button { cursor: pointer; font-size: 13px; padding: 7px 16px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); font-family: inherit; }
@@ -185,7 +185,7 @@ function getPlainText(){
   const filtered=allEvents.filter(e=>sameDay(e.date,targetDate)).sort((a,b)=>a.time.localeCompare(b.time));
   let t=`GM SIR ENGAGEMENT SCHEDULE\n${dd} ${month} ${year}  |  ${day}\n${'='.repeat(32)}\n\n`;
   if(!filtered.length){ t+='No engagements scheduled.'; }
-  else { filtered.forEach((e,i)=>{ t+=`${i+1}. ${e.title}\n`; if(e.time) t+=`   Time  : ${e.time} hrs\n`; if(e.location) t+=`   Venue : ${e.location}\n`; if(e.attendees) t+=`   ${e.attendees}\n`; if(i<filtered.length-1) t+='\n'; }); }
+  else { filtered.forEach((e,i)=>{ t+=`${e.title}\n`; if(e.time) t+=`   Time  : ${e.time} hrs\n`; if(e.location) t+=`   Venue : ${e.location}\n`; if(e.attendees) t+=`   ${e.attendees}\n`; if(i<filtered.length-1) t+='\n'; }); }
   return t;
 }
 
