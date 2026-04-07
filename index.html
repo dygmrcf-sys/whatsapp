@@ -102,11 +102,12 @@ function parseCSV(raw){
   if(!lines.length) return [];
   const header=lines[0].split(',').map(h=>h.trim().toLowerCase().replace(/"/g,''));
   const idx={
-    date:      header.findIndex(h=>h==='date'),
-    time:      header.findIndex(h=>h==='time'),
-    title:     header.findIndex(h=>h.includes('title')||h.includes('engagement')||h.includes('subject')),
-    location:  header.findIndex(h=>h.includes('location')||h.includes('venue')||h.includes('place')),
-    attendees: header.findIndex(h=>h.includes('attendee')||h.includes('participant')||h.includes('officer')),
+    date:       header.findIndex(h=>h==='date'),
+    time:       header.findIndex(h=>h==='time'),
+    title:      header.findIndex(h=>h.includes('title')||h.includes('engagement')||h.includes('subject')),
+    location:   header.findIndex(h=>h.includes('location')||h.includes('venue')||h.includes('place')),
+    attendees:  header.findIndex(h=>h.includes('attendee')||h.includes('participant')||h.includes('officer')),
+    visibility: header.findIndex(h=>h.includes('visibility')),
   };
   const parsed=[];
   for(let i=1;i<lines.length;i++){
@@ -115,6 +116,8 @@ function parseCSV(raw){
     if(!dateStr) continue;
     const d=parseDate(dateStr);
     if(!d||isNaN(d)) continue;
+    const visibility=idx.visibility>=0?(cols[idx.visibility]||'').replace(/"/g,'').trim().toLowerCase():'';
+    if(visibility==='no') continue;
     parsed.push({
       date:d,
       time:      idx.time>=0      ?(cols[idx.time]||'').replace(/"/g,'').trim():'',
